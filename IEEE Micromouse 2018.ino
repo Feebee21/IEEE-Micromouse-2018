@@ -2,7 +2,6 @@
 // David Stachnik
 
 //Global Variables and Defines
-
 #include <Wire.h>
 #include <Adafruit_MotorShield.h>
 #include "utility/Adafruit_MS_PWMServoDriver.h"
@@ -24,10 +23,10 @@ int maze[8][8] = {{100,100,100,100,100,100,100,100},{100,4,3,2,2,3,4,100},{100,3
 
 
 //Stack
-int stack[100] = {24,12,412,312,31,231,241,24,124,124,124,124,124,3,524,53,57,568,56,5634,5,346,457,456,34,534,635,6,345,235,34,634,524,5,12};
+int stack[100] = {};
 int top;
 
-//Bot starting direction and position
+//Bot starting direction and position (Note PosX and PoxY equal 1 due to outer 100 layer)
 String direction = "north";
 int PosX = 1;
 int PosY = 1;
@@ -40,6 +39,7 @@ float distance1;
 float distance2;
 float distance3;
 
+//Buzzer for reaching center
 short analog_write_range = 255;
 byte buzzer = 3;
 float power = 1;
@@ -85,9 +85,9 @@ void setup() {
 
 /*
 * Notes: Double
-* MOTORS ARE BACKWARDS! Dam hardware team...
+* MOTORS ARE BACKWARDS! 
 */
-//Buzzer
+//Buzzer for reaching center
 void ringBuzzer (byte id, float freq, short dur, float power) {
   if (freq > 0) {
     long value = round (500000 / freq);
@@ -110,6 +110,12 @@ void ringBuzzer (byte id, float freq, short dur, float power) {
 float getFreq (short note) {
   return 440 * pow (2, note / 12.0);
 }
+
+
+//--------------------
+//NAVAGATION CODE
+//--------------------
+
 // Go Forward
 void Forward()
 {
@@ -121,13 +127,13 @@ void Forward()
 
     volts2 = analogRead(sensor2)*0.0048828125; // value from sensor * (5/1024)
     distance2 = 39.4527*pow(0.0614007,volts2); // worked out from datasheet graph
-    distance2 = distance2 + 4.45;
+    distance2 = distance2 + 4.45; //Final distance readout
 
     volts3 = analogRead(sensor3)*0.0048828125; // value from sensor * (5/1024)
     distance3 = 39.4527*pow(0.0614007,volts3); // worked out from datasheet graph
-    distance3 = distance3 + 4.45;
+    distance3 = distance3 + 4.45; //Final distance readout
 
-
+	//Correction Code. Adds steps to either left or right motor if the bot gets too close to a side wall.
     if(distance2 <= 5){
       myMotorLeft->step(1, FORWARD, DOUBLE);
       i = i - 0.5;
@@ -138,6 +144,7 @@ void Forward()
     }
 
   }    
+  //Updates bot position after movement
   if(direction == "north") PosY = PosY + 1;
   else if(direction == "east") PosX = PosX + 1;
   else if(direction == "south") PosY = PosY - 1;
@@ -149,12 +156,12 @@ void Forward()
 void LeftTurn()
 {
   Serial.println("Making Left Turn");
-  // Left Turn
   for(int i=0; i<87; i++)
   {
     myMotorLeft->step(1,BACKWARD , DOUBLE); 
     myMotorRight->step(1,FORWARD , DOUBLE);
   }
+  //Updates bot direction after turn
   if(direction == "east") direction = "north";
   else if(direction == "north") direction = "west";
   else if(direction == "west") direction = "south";
@@ -171,6 +178,7 @@ void RightTurn()
     myMotorLeft->step(1,FORWARD , DOUBLE);
     myMotorRight->step(1,BACKWARD , DOUBLE); 
   }
+  //Updates bot direction after turn
   if(direction == "east") direction = "south";
   else if(direction == "north") direction = "east";
   else if(direction == "west") direction = "north";
@@ -187,6 +195,7 @@ void UTurn()
     myMotorLeft->step(1, FORWARD, DOUBLE);
     myMotorRight->step(1, BACKWARD, DOUBLE); 
   }
+  //Updates bot direction after turn
   if(direction == "east") direction = "west";
   else if(direction == "north") direction = "south";
   else if(direction == "west") direction = "east";
@@ -195,6 +204,7 @@ void UTurn()
 }
 
 //Correct Front
+//When it detects a front wall it'll use the front sense to recalibrate itself
 void correctFront(){
   Serial.println("Correcting Front");
   if(distance1<5.5){
@@ -203,7 +213,7 @@ void correctFront(){
       myMotorRight->step(1, FORWARD, DOUBLE);
       volts1 = analogRead(sensor1)*0.0048828125; // value from sensor * (5/1024)
       distance1 = 39.4527*pow(0.0614007,volts1); // worked out from datasheet graph
-      distance1 = distance1 + 4.45;    
+      distance1 = distance1 + 4.45; //Final distance readout    
     }
   }
   else if(distance1>5.5){
@@ -212,7 +222,7 @@ void correctFront(){
       myMotorRight->step(1, BACKWARD, DOUBLE);
       volts1 = analogRead(sensor1)*0.0048828125; // value from sensor * (5/1024)
       distance1 = 39.4527*pow(0.0614007,volts1); // worked out from datasheet graph
-      distance1 = distance1 + 4.45;
+      distance1 = distance1 + 4.45; //Final distance readout
     }    
   }
 }
@@ -238,12 +248,9 @@ void loop() {
   //Checks if the bot is in the center, does a 360 and stops
   if(maze[PosX][PosY] == 0){
     Serial.println("*****CENTER REACHED*****");
-
-    playMusic();
- 
+	playMusic();
     UTurn();
     UTurn();
-	
     //Endless Loop to Stop Bot
     Serial.println("*****ALL STOP*****");
     while(1);
@@ -252,13 +259,13 @@ void loop() {
   //Converts sensor output into cm. Program wise this is when the sensors get their data.
   volts1 = analogRead(sensor1)*0.0048828125;  // value from sensor * (5/1024)
   distance1 = 39.4527*pow(0.0614007,volts1); // worked out from datasheet graph
-  distance1 = distance1 + 4.45;
+  distance1 = distance1 + 4.45; //Final distance readout
   volts2 = analogRead(sensor2)*0.0048828125;  // value from sensor * (5/1024)
   distance2 = 39.4527*pow(0.0614007,volts2); // worked out from datasheet graph
   distance2 = distance2 + 4.45;
   volts3 = analogRead(sensor3)*0.0048828125; // value from sensor * (5/1024)
   distance3 = 39.4527*pow(0.0614007,volts3); // worked out from datasheet graph
-  distance3 = distance3 + 4.45;
+  distance3 = distance3 + 4.45; //Final distance readout
   
   // Prints Sensor Distances
   Serial.println("-----Distance values-----");
@@ -340,7 +347,7 @@ int currentValue = maze[PosX][PosY];
 //Stores none into desired direction, this will either be changed if it finds an open direction with a lower value or stay as none if the current cell needs to update.
 String desDirection = "none";
 
-//Compares the currentValue against the values around it, this logic needs to be checked for issues because it's definitely not perfect.
+//Compares the currentValue against the values around it, keep in mind priority of order
 
 if(valueEast < currentValue){
   currentValue = valueEast;
@@ -375,7 +382,9 @@ if(desDirection == "none"){
 else{
   
   //Bot Correction
+  //To close
   if(distance1 < 5.5) correctFront();
+  //To far, but not so far it's in another cell
   if(distance1 > 5.5 && distance1 < 20) correctFront();
 
   while(direction != desDirection){
@@ -392,7 +401,7 @@ else{
   // LOOP END
 }
 
-
+//Fun buzzer music for when the bot reaches the center
 void playMusic () {
   
   ringBuzzer (buzzer, getFreq(-2 + offset), beat * 1, power);
